@@ -56,11 +56,13 @@ jobs:
           keys=(FIREBASE_API_KEY FIREBASE_APP_ID FIREBASE_SENDER_ID FIREBASE_PROJECT_ID FIREBASE_AUTH_DOMAIN)
           defines=(--dart-define=ALGOROOM_AUTH=true)
           for key in "${keys[@]}"; do
-            if [[ -z "${!key}" ]]; then
+            value="${!key}"
+            value="${value//[[:space:]]/}"
+            if [[ -z "$value" ]]; then
               echo "::error::Missing GitHub Actions repository variable: $key"
               exit 1
             fi
-            defines+=("--dart-define=$key=${!key}")
+            defines+=("--dart-define=$key=$value")
           done
           flutter build web --release --base-href "${PAGES_BASE_PATH%/}/" "${defines[@]}"
 
