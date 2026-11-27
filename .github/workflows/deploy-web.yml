@@ -43,10 +43,26 @@ jobs:
       - name: Install Flutter dependencies
         run: flutter pub get
 
-      - name: Build web app
+      - name: Build web app with Firebase
         env:
           PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
-        run: flutter build web --release --base-href "${PAGES_BASE_PATH%/}/"
+          FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
+          FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
+          FIREBASE_SENDER_ID: ${{ vars.FIREBASE_SENDER_ID }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIREBASE_AUTH_DOMAIN: ${{ vars.FIREBASE_AUTH_DOMAIN }}
+        shell: bash
+        run: |
+          keys=(FIREBASE_API_KEY FIREBASE_APP_ID FIREBASE_SENDER_ID FIREBASE_PROJECT_ID FIREBASE_AUTH_DOMAIN)
+          defines=(--dart-define=ALGOROOM_AUTH=true)
+          for key in "${keys[@]}"; do
+            if [[ -z "${!key}" ]]; then
+              echo "::error::Missing GitHub Actions repository variable: $key"
+              exit 1
+            fi
+            defines+=("--dart-define=$key=${!key}")
+          done
+          flutter build web --release --base-href "${PAGES_BASE_PATH%/}/" "${defines[@]}"
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
