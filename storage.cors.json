@@ -1,0 +1,16 @@
+[
+  {
+    "origin": [
+      "https://se-230717049.github.io"
+    ],
+    "method": [
+      "GET",
+      "HEAD"
+    ],
+    "responseHeader": [
+      "Content-Type",
+      "Authorization"
+    ],
+    "maxAgeSeconds": 3600
+  }
+]

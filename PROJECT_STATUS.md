@@ -34,3 +34,10 @@ Bir sonraki geliştirme adımı Firebase Auth emülatöründe e-posta kayıt, do
 
 - Proje adı AlgoRoom, Dart paket adı algoroom olarak güncellendi. Android ve iOS görünen adları ile Türkçe ve İngilizce marka metinleri güncellendi. Firebase uygulama kimlikleri daha sonra com.algoroom.app olarak güncellendi.
 - Yerelleştirme üretimi başarılı. google_sign_in yerel önbellekte bulunmadığı için çevrimdışı paket çözümlemesi, Flutter analizi ve testler tamamlanamadı.
+
+## 28 Kasım 2026 · İlanlar
+
+- Riverpod ve GoRouter üzerinden girişli kullanıcıya ilan formu, keşif, favoriler, detay, ilan yönetimi ve ilana özel mesaj kutusu eklendi.
+- Firebase Auth UID, Firestore ilan verisi, Storage fotoğraf verisi ve sahiplik kuralları birbirine bağlandı. Üretim Firebase projesinde hiçbir değişiklik uygulanmadı.
+- Biçim denetimi, yerelleştirme üretimi ve 11 bağımsız Dart kontrolü başarılı. Firebase bağımsız kod analizi temiz. Tam proje paketleri ağ erişimi nedeniyle indirilemedi. Flutter test çalıştırıcısındaki yerel soket kısıtlaması ve eksik npm test bağımlılıkları entegrasyon doğrulamasını engelledi.
+- Kurulum ve test sonuçları docs/LISTINGS_SETUP.md ile docs/LISTINGS_VERIFICATION.md dosyalarında.

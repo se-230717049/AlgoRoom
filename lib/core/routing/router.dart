@@ -5,6 +5,10 @@ import 'package:go_router/go_router.dart';
 import '../../features/authentication/data/firebase_auth_repository.dart';
 import '../../features/authentication/presentation/login_screen.dart';
 import '../../features/demo/presentation/demo_screen.dart';
+import '../../features/listings/presentation/create_listing_screen.dart';
+import '../../features/listings/presentation/listing_detail_screen.dart';
+import '../../features/listings/presentation/listing_messages_screen.dart';
+import '../../features/listings/presentation/my_listings_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../l10n/app_localizations.dart';
 import '../settings/preferences.dart';
@@ -21,7 +25,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       final preferences = ref.read(preferencesProvider).value;
       final session = ref.read(signedInProvider);
       final location = route.matchedLocation;
-      if (preferences?.onboarded == true && location == '/demo') return null;
+      if (preferences?.onboarded == true &&
+          (location == '/demo' ||
+              (session.value == true && location.startsWith('/account/')))) {
+        return null;
+      }
       final target = preferences == null
           ? '/'
           : !preferences.onboarded
@@ -40,6 +48,35 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/account',
         builder: (_, _) => const DemoScreen(authenticated: true),
+        routes: [
+          GoRoute(
+            path: 'listings/new',
+            builder: (_, _) => const CreateListingScreen(),
+          ),
+          GoRoute(
+            path: 'my-listings',
+            builder: (_, _) => const MyListingsScreen(),
+          ),
+          GoRoute(
+            path: 'listings/:id/edit',
+            builder: (_, state) =>
+                CreateListingScreen(listingId: state.pathParameters['id']),
+          ),
+          GoRoute(
+            path: 'listings/:id',
+            builder: (_, state) =>
+                ListingDetailScreen(listingId: state.pathParameters['id']!),
+          ),
+          GoRoute(
+            path: 'listing-messages',
+            builder: (_, _) => const ListingInboxScreen(),
+          ),
+          GoRoute(
+            path: 'listing-messages/:id',
+            builder: (_, state) =>
+                ListingMessagesScreen(threadId: state.pathParameters['id']!),
+          ),
+        ],
       ),
       GoRoute(path: '/demo', builder: (_, _) => const DemoScreen()),
     ],

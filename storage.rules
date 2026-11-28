@@ -1,0 +1,29 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function owns(userId) { return request.auth != null && request.auth.uid == userId; }
+    function listing(listingId) {
+      return firestore.get(/databases/(default)/documents/listings/$(listingId)).data;
+    }
+    function visible(userId, listingId, file) {
+      let data = listing(listingId);
+      return request.auth != null && data.userId == userId && data.status == 'active'
+        && ('listingPhotos/' + userId + '/' + listingId + '/' + file) in data.imagePaths;
+    }
+    function draftOrLive(listingId, userId) {
+      let data = listing(listingId);
+      return data.userId == userId && data.status in ['draft', 'active', 'inactive'];
+    }
+    match /listingPhotos/{userId}/{listingId} {
+      allow list: if owns(userId);
+      match /{file} {
+        allow get: if owns(userId) || visible(userId, listingId, file);
+        allow write: if owns(userId) && (request.resource == null
+          || (resource == null && draftOrLive(listingId, userId)
+            && file.matches('[A-Za-z0-9]+-[0-9]\\.jpg')
+            && request.resource.size > 0 && request.resource.size <= 2097152
+            && request.resource.contentType == 'image/jpeg'));
+      }
+    }
+  }
+}

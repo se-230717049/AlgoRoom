@@ -7,6 +7,7 @@ import '../../../core/settings/preferences.dart';
 import '../../../core/widgets/status_view.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../authentication/data/firebase_auth_repository.dart';
+import '../../listings/presentation/listings_feed.dart';
 import '../data/mock_repository.dart';
 import '../domain/demo_repository.dart';
 
@@ -29,6 +30,7 @@ class DemoScreen extends ConsumerStatefulWidget {
 class _DemoScreenState extends ConsumerState<DemoScreen> {
   final _saved = <String>{};
   int _tab = 0;
+  bool _showListings = false;
   String? _region;
   bool _signingOut = false;
 
@@ -49,37 +51,66 @@ class _DemoScreenState extends ConsumerState<DemoScreen> {
                 ? () => _signOut(strings)
                 : () => context.go('/login'),
           ),
-          Padding(
-            padding: const EdgeInsetsDirectional.only(end: 16),
-            child: Chip(label: Text(strings.demo)),
-          ),
+          if (!widget.authenticated)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 16),
+              child: Chip(label: Text(strings.demo)),
+            ),
         ],
       ),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 720),
-            child: _tab == 3
-                ? const _Settings()
-                : catalog.when(
-                    data: (data) => _catalog(context, data, strings),
-                    loading: () =>
-                        const Center(child: CircularProgressIndicator()),
-                    error: (_, _) => StatusView(
-                      icon: Icons.cloud_off_outlined,
-                      title: strings.loadError,
-                      action: FilledButton(
-                        onPressed: () => ref.invalidate(demoCatalogProvider),
-                        child: Text(strings.retry),
-                      ),
+            child: switch (_tab) {
+              3 => _Settings(authenticated: widget.authenticated),
+              0 when widget.authenticated => Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: SegmentedButton<bool>(
+                      segments: [
+                        ButtonSegment(
+                          value: false,
+                          label: Text(strings.listingPeople),
+                        ),
+                        ButtonSegment(
+                          value: true,
+                          label: Text(strings.listings),
+                        ),
+                      ],
+                      selected: {_showListings},
+                      onSelectionChanged: (values) =>
+                          setState(() => _showListings = values.single),
                     ),
                   ),
+                  Expanded(
+                    child: _showListings
+                        ? const ListingsFeed()
+                        : _catalogState(context, strings, catalog),
+                  ),
+                ],
+              ),
+              1 when widget.authenticated => const ListingsFeed(),
+              2 when widget.authenticated => const ListingsFeed(
+                favoritesOnly: true,
+              ),
+              _ => _catalogState(context, strings, catalog),
+            },
           ),
         ),
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
-        onDestinationSelected: (index) => setState(() => _tab = index),
+        onDestinationSelected: (index) {
+          if (index == 4) {
+            context.push(
+              widget.authenticated ? '/account/listings/new' : '/login',
+            );
+          } else {
+            setState(() => _tab = index);
+          }
+        },
         destinations: [
           NavigationDestination(
             icon: const Icon(Icons.explore_outlined),
@@ -95,12 +126,35 @@ class _DemoScreenState extends ConsumerState<DemoScreen> {
           ),
           NavigationDestination(
             icon: const Icon(Icons.settings_outlined),
-            label: strings.settings,
+            label: widget.authenticated
+                ? strings.listingProfile
+                : strings.settings,
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.add_circle_outline),
+            label: strings.createListing,
           ),
         ],
       ),
     );
   }
+
+  Widget _catalogState(
+    BuildContext context,
+    AppLocalizations strings,
+    AsyncValue<DemoCatalog> catalog,
+  ) => catalog.when(
+    data: (data) => _catalog(context, data, strings),
+    loading: () => const Center(child: CircularProgressIndicator()),
+    error: (_, _) => StatusView(
+      icon: Icons.cloud_off_outlined,
+      title: strings.loadError,
+      action: FilledButton(
+        onPressed: () => ref.invalidate(demoCatalogProvider),
+        child: Text(strings.retry),
+      ),
+    ),
+  );
 
   Future<void> _signOut(AppLocalizations strings) async {
     setState(() => _signingOut = true);
@@ -226,7 +280,9 @@ class _DemoScreenState extends ConsumerState<DemoScreen> {
 }
 
 class _Settings extends ConsumerWidget {
-  const _Settings();
+  const _Settings({required this.authenticated});
+
+  final bool authenticated;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -237,6 +293,23 @@ class _Settings extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
+        if (authenticated) ...[
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.home_work_outlined),
+              title: Text(strings.myListings),
+              onTap: () => context.push('/account/my-listings'),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.chat_bubble_outline),
+              title: Text(strings.listingInbox),
+              onTap: () => context.push('/account/listing-messages'),
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
         if (settings?.saveFailed == true) Text(strings.saveError),
         if (settings?.saving == true) const LinearProgressIndicator(),
         DropdownButtonFormField<bool>(

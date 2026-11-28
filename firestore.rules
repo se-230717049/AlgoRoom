@@ -1,0 +1,153 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function owner(data) { return signedIn() && data.userId == uid(); }
+    function listingPath(id) {
+      return /databases/$(database)/documents/listings/$(id);
+    }
+    function viewPath(id) {
+      return /databases/$(database)/documents/listings/$(id)/views/$(uid());
+    }
+    function text(value, min, max) {
+      return value is string && value.size() >= min && value.size() <= max
+        && (min == 0 || value.matches('(?s).*[^\\s].*'));
+    }
+    function number(value, min, max) {
+      return value is int && value >= min && value <= max;
+    }
+    function priceOrNull(value) { return value == null || number(value, 0, 10000000); }
+    function listingPhotoAt(data, index) {
+      return data.imagePaths.size() <= index
+        || (data.imagePaths[index] is string
+          && data.imagePaths[index].matches('listingPhotos/' + data.userId + '/' + data.id + '/[A-Za-z0-9]+-[0-9]\\.jpg')
+          && data.imageUrls[index] is string
+          && data.imageUrls[index].matches('gs://[a-z0-9.-]+/' + data.imagePaths[index]));
+    }
+    function photos(data) {
+      return data.imagePaths is list && data.imageUrls is list
+        && data.imagePaths.size() == data.imageUrls.size() && data.imagePaths.size() <= 10
+        && data.imagePaths.toSet().size() == data.imagePaths.size()
+        && (data.imageUrls.size() == 0 ? data.coverImageUrl == null : data.coverImageUrl in data.imageUrls)
+        && listingPhotoAt(data, 0) && listingPhotoAt(data, 1) && listingPhotoAt(data, 2)
+        && listingPhotoAt(data, 3) && listingPhotoAt(data, 4) && listingPhotoAt(data, 5)
+        && listingPhotoAt(data, 6) && listingPhotoAt(data, 7) && listingPhotoAt(data, 8) && listingPhotoAt(data, 9);
+    }
+    function listingFields(data) {
+      return data.keys().hasOnly(['id', 'userId', 'ownerName', 'title', 'description',
+        'listingType', 'city', 'district', 'cityKey', 'districtKey', 'neighborhood',
+        'monthlyRent', 'deposit', 'buildingFee', 'houseType', 'currentOccupants',
+        'desiredRoommates', 'availableDate', 'furnished', 'smokingAllowed',
+        'petsAllowed', 'amenities', 'imagePaths', 'imageUrls', 'coverImageUrl',
+        'createdAt', 'updatedAt', 'status', 'viewCount', 'revision', 'retiredPaths', 'operationId'])
+        && text(data.ownerName, 0, 80) && text(data.title, 1, 100)
+        && text(data.description, 1, 2000) && text(data.city, 1, 70)
+        && text(data.district, 1, 70) && text(data.cityKey, 1, 70)
+        && text(data.districtKey, 1, 70) && text(data.neighborhood, 0, 90)
+        && data.listingType in ['room', 'housemate', 'rentTogether']
+        && number(data.monthlyRent, 1, 10000000)
+        && number(data.desiredRoommates, 1, 50)
+        && data.availableDate is timestamp && data.smokingAllowed is bool && data.petsAllowed is bool
+        && data.amenities.keys().hasOnly(['wifi', 'balcony', 'heating'])
+        && data.amenities.wifi is bool && data.amenities.balcony is bool
+        && (data.amenities.heating == null || data.amenities.heating in ['gas', 'central', 'electric', 'stove', 'other'])
+        && (data.listingType == 'rentTogether'
+          ? data.houseType == null && data.currentOccupants == null && data.furnished == null
+            && data.deposit == null && data.buildingFee == null && data.neighborhood == ''
+            && !data.amenities.wifi && !data.amenities.balcony && data.amenities.heating == null
+          : data.houseType in ['1+1', '2+1', '3+1', '4+1', 'other'] && data.neighborhood.size() > 0
+            && number(data.currentOccupants, 0, 50) && data.furnished is bool
+            && priceOrNull(data.deposit) && priceOrNull(data.buildingFee))
+        && data.createdAt is timestamp && data.updatedAt is timestamp
+        && number(data.viewCount, 0, 2147483647) && number(data.revision, 0, 2147483647)
+        && (!data.keys().hasAny(['operationId']) || text(data.operationId, 1, 64))
+        && data.status in ['draft', 'active', 'inactive', 'deleting']
+        && data.retiredPaths is list && data.retiredPaths.size() <= 200 && photos(data);
+    }
+    function liveListing(id) {
+      return get(listingPath(id)).data.status == 'active';
+    }
+    function canView(data) { return signedIn() && (owner(data) || data.status == 'active'); }
+
+    match /listings/{id} {
+      allow get: if signedIn() && (resource == null || canView(resource.data));
+      allow list: if canView(resource.data);
+      allow create: if owner(request.resource.data) && request.resource.data.id == id
+        && listingFields(request.resource.data) && request.resource.data.status == 'draft'
+        && request.resource.data.viewCount == 0 && request.resource.data.revision == 0
+        && request.resource.data.imagePaths.size() == 0 && request.resource.data.retiredPaths.size() == 0
+        && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
+      allow update: if owner(resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['retiredPaths'])
+        && request.resource.data.retiredPaths is list
+        && request.resource.data.retiredPaths.toSet().difference(resource.data.retiredPaths.toSet()).size() == 0;
+      allow update: if owner(resource.data) && resource.data.status != 'deleting'
+        && listingFields(request.resource.data)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'userId', 'ownerName', 'createdAt', 'viewCount'])
+        && request.resource.data.revision == resource.data.revision + 1
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.status != 'draft'
+        && request.resource.data.retiredPaths.toSet().difference(resource.data.retiredPaths.toSet())
+          .difference(resource.data.imagePaths.toSet()).size() == 0;
+      allow update: if signedIn() && !owner(resource.data) && resource.data.status == 'active'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewCount'])
+        && request.resource.data.viewCount == resource.data.viewCount + 1
+        && !exists(viewPath(id)) && getAfter(viewPath(id)).data.createdAt == request.time;
+      allow delete: if owner(resource.data) && resource.data.status in ['draft', 'deleting'];
+
+      match /views/{viewerId} {
+        allow get: if signedIn() && viewerId == uid() && liveListing(id);
+        allow create: if signedIn() && viewerId == uid() && liveListing(id)
+          && !owner(get(listingPath(id)).data)
+          && request.resource.data.keys().hasOnly(['createdAt'])
+          && request.resource.data.createdAt == request.time
+          && getAfter(listingPath(id)).data.viewCount == get(listingPath(id)).data.viewCount + 1;
+      }
+      match /reports/{reporterId} {
+        allow read: if signedIn() && request.auth.token.admin == true;
+        allow create: if signedIn() && reporterId == uid() && liveListing(id)
+          && !owner(get(listingPath(id)).data)
+          && request.resource.data.keys().hasOnly(['reason', 'createdAt'])
+          && text(request.resource.data.reason, 5, 500)
+          && request.resource.data.createdAt == request.time;
+      }
+    }
+    match /listingUserData/{userId}/favorites/{listingId} {
+      allow read, delete: if signedIn() && uid() == userId;
+      allow create, update: if signedIn() && uid() == userId && liveListing(listingId)
+        && request.resource.data.keys().hasOnly(['createdAt'])
+        && request.resource.data.createdAt == request.time;
+    }
+    function inThread(data) { return signedIn() && uid() in data.participants; }
+
+    match /listingThreads/{threadId} {
+      allow read: if inThread(resource.data);
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['listingId', 'listingTitle', 'ownerId', 'buyerId', 'participants', 'updatedAt'])
+        && threadId == request.resource.data.listingId + '_' + uid()
+        && request.resource.data.buyerId == uid() && request.resource.data.ownerId != uid()
+        && liveListing(request.resource.data.listingId)
+        && request.resource.data.ownerId == get(listingPath(request.resource.data.listingId)).data.userId
+        && request.resource.data.listingTitle == get(listingPath(request.resource.data.listingId)).data.title
+        && request.resource.data.participants == [request.resource.data.ownerId, uid()]
+        && request.resource.data.updatedAt == request.time;
+      allow update: if inThread(resource.data) && request.resource.data.updatedAt == request.time
+        && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['updatedAt'])
+          || (uid() == resource.data.buyerId
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['updatedAt', 'listingTitle'])
+            && liveListing(resource.data.listingId)
+            && request.resource.data.listingTitle == get(listingPath(resource.data.listingId)).data.title));
+      match /messages/{messageId} {
+        function member() {
+          return inThread(get(/databases/$(database)/documents/listingThreads/$(threadId)).data);
+        }
+        allow read: if member();
+        allow create: if member() && request.resource.data.userId == uid()
+          && request.resource.data.keys().hasOnly(['userId', 'body', 'createdAt'])
+          && text(request.resource.data.body, 1, 1000)
+          && request.resource.data.createdAt == request.time;
+      }
+    }
+  }
+}

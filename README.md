@@ -19,3 +19,7 @@ flutter run
 İlk açılışta üç sayfalı tanıtım gösterilir. Ardından giriş ekranı açılır. Demoyu aç seçeneğiyle hesap kullanmadan devam edebilirsin. Telefon ve Google girişi için [Firebase Auth kurulumuna](docs/FIREBASE_AUTH.md) bak. Tema, dil ve onboarding tercihi cihaza kaydedilir. İlan favorileri uygulama oturumunda tutulur. Firebase kurulumu için docs/FIREBASE_SETUP.md dosyasına bak.
 
 Android debug derlemesi için `flutter build apk --debug` kullan. Yayın derlemesi için kendi imza anahtarını ve gizli Gradle ayarlarını yapılandır. Anahtar ve şifreleri sürüm kontrolü dışında tut.
+
+## İlanlar
+
+Firestore, Storage, Firebase kuralları ve GitHub Pages için [ilan kurulumuna](docs/LISTINGS_SETUP.md) bak.
