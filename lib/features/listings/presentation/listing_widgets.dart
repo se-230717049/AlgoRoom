@@ -122,7 +122,7 @@ class _ListingFavoriteButtonState extends ConsumerState<ListingFavoriteButton> {
   bool _pending = false;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final strings = AppLocalizations.of(context)!;
     final favorites = ref.watch(listingFavoritesProvider).value;
     final repository = ref.watch(listingsProvider).value;

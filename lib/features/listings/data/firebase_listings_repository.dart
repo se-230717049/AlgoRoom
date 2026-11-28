@@ -55,11 +55,11 @@ class FirebaseListingsRepository implements ListingsRepository {
     final token = await _user.getIdToken();
     if (token == null || token.isEmpty) return null;
     final path = Uri.encodeComponent(reference.fullPath);
-    final url = Uri.parse(
+    final downloadUri = Uri.parse(
       'https://firebasestorage.googleapis.com/v0/b/${reference.bucket}/o/$path?alt=media',
     );
     final response = await http.get(
-      url,
+      downloadUri,
       headers: {'Authorization': 'Firebase $token'},
     );
     if (response.statusCode != 200 || response.bodyBytes.length > limit)
